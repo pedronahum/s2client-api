@@ -10,6 +10,8 @@ class Replay : public sc2::ReplayObserver {
 public:
     std::vector<uint32_t> count_units_built_;
     uint32_t counter = 0; // per replay, keeps track of the number of players
+    int32_t minerals = 0; // mineral count
+    int32_t gas = 0; // gas count
 
     Replay() :
         sc2::ReplayObserver() {
@@ -46,11 +48,25 @@ public:
     }
     
     void OnUnitCreated(const sc2::Unit* unit) final {
+
         assert(uint32_t(unit->unit_type) < count_units_built_.size());
         ++count_units_built_[unit->unit_type];
+        const sc2::ObservationInterface* obs = Observation();
+        if (unit->unit_type != sc2::UNIT_TYPEID::ZERG_DRONE &&
+            unit->unit_type != sc2::UNIT_TYPEID::ZERG_LARVA &&
+            unit->unit_type != sc2::UNIT_TYPEID::TERRAN_SCV &&
+            unit->unit_type != sc2::UNIT_TYPEID::PROTOSS_PROBE
+
+        ) {
+            std::cout << "- GameLoop: " << obs->GetGameLoop() << "; Minerals: " << minerals << "; Gas: " << gas << "; Supply: " << obs->GetFoodUsed() << " / "
+                      << obs->GetFoodCap() << " " << UnitTypeToName(unit->unit_type) << std::endl;
+        }
     }
 
     void OnStep() final {
+        const sc2::ObservationInterface* obs = Observation();
+        minerals = obs->GetMinerals();
+        gas = obs->GetVespene();
     }
 
     void OnGameEnd() final {
@@ -96,13 +112,15 @@ public:
         // Display additional information about the replay
         sc2::ReplayInfo replay_info = ReplayControl()->GetReplayInfo();
         std::cout << "duration_seconds: " << replay_info.duration << std::endl;
+        std::cout << "players_1_race: " << replay_info.players[0].race << std::endl;
+        std::cout << "players_2_race: " << replay_info.players[1].race << std::endl;
         std::cout << "duration_game_loops: " << replay_info.duration_gameloops << std::endl;
         std::cout << "game_version: " << replay_info.version << std::endl;
         std::cout << "data_build: " << replay_info.data_build << std::endl;
         std::cout << "base_build: " << replay_info.base_build << std::endl;
         std::cout << "data_version: " << replay_info.data_version << std::endl;
         std::cout  << std::endl;
-        std::cout << "additional player info: " << std::endl;
+        std::cout << "Additional player info " << std::endl;
         std::cout << "player_mmr: " << replay_info.players->mmr << std::endl;
         std::cout << "player_apm: " << replay_info.players->apm << std::endl;
         std::cout  << std::endl;
@@ -123,7 +141,7 @@ int main(int argc, char* argv[]) {
 
     Replay replay_observer;
     coordinator.AddReplayObserver(&replay_observer);
-    coordinator.SetStepSize(3);
+    // coordinator.SetStepSize(3);
 
     while (coordinator.Update());
     while (!sc2::PollKeyPress());
